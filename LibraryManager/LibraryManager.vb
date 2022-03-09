@@ -1,10 +1,10 @@
-﻿Public Class LibraryManager
+﻿''' <summary>
+''' A basic library inventory manager
+''' </summary>
+Public Class LibraryManager
 
     'The library database
     Dim db As libraryDataContext
-
-    'Don't register table cell selections until this is true
-    Dim registerSelections = False
 
     Private Sub LibraryManager_Load(sender As Object, e As EventArgs) Handles MyBase.Load
 
@@ -12,10 +12,9 @@
 
         ReloadData()
 
-        registerSelections = True
-
     End Sub
 
+#Region "Utility functions"
     ''' <summary>
     ''' Refresh the data held in the table from the database
     ''' </summary>
@@ -28,68 +27,49 @@
     ''' </summary>
     ''' <returns></returns>
     Private Function GetSelectedBook() As Book
+
+        ' Get the selected row 
         Dim row = DataGridView1.CurrentRow
 
+        ' prevent exceptions from bubbling out
         Try
-            If registerSelections AndAlso row IsNot Nothing Then
 
+            If row IsNot Nothing Then
+
+                ' Get the book's id stored in the row 
                 Dim id = CInt(row.Cells(0).Value)
 
-                Dim rowData = (From book In db.Books
-                               Where book.BookID = id
-                               Select book).ToList()(0)
-                Return rowData
+                ' Get the book's complete details from the database
+                Dim book = (From bk In db.Books
+                            Where bk.BookID = id
+                            Select bk).ToList()(0)
+                Return book
 
             End If
         Catch ex As Exception
-
+            'Handle exceptions
         End Try
 
+        ' If anything above failed
+
+        ' Get the list of books from the database
         Dim bookList = (From book In db.Books).ToList()
 
+        ' return the first book in the database, if there are any books available
         If bookList.Count > 0 Then
             Return (From book In db.Books).ToList()(0)
-        Else
+        Else ' Otherwise, return nothing
             Return Nothing
         End If
 
     End Function
 
-    Private Sub DataGridView1_Click(sender As Object, e As EventArgs) Handles DataGridView1.SelectionChanged
 
-        'Dim row = DataGridView1.CurrentRow
-
-        'If registerSelections AndAlso row IsNot Nothing Then
-
-        '    Dim id = CInt(row.Cells(0)?.Value)
-
-        '    Dim rowData = (From book In db.Books Where book.BookID = id).ToList()(0)
-
-        Dim book = GetSelectedBook()
-
-        If book IsNot Nothing Then
-
-            BookIDTextBox.Text = book.BookID
-            NameTextBox.Text = If(book.Name, "")
-            AuthorTextBox.Text = If(book.Author, "")
-            PublisherTextBox.Text = If(book.Publisher, "")
-            DatePublishedDateTimePicker.Value = If(book.DatePublished, Date.Now)
-            PagesTextBox.Text = If(book.Pages, "")
-            RatingTextBox.Text = If(book.Rating, "")
-
-            'Dim index = DataGridView1.CurrentRow.Index
-            'MessageBox.Show(id)
-            'MessageBox.Show(DataGridView1.CurrentRow.ToString())
-            'DataGridView1.row
-            'End If
-        End If
-
-
-    End Sub
 
 
     ''' <summary>
-    ''' Numerical fields can't be cast from "" (an empty or null string), so this returns 0 instead when "" is the input
+    ''' Numerical fields can't be directly initialized from "" (an empty or null string), 
+    ''' so this returns 0 instead to prevent an exception when: Value = "" 
     ''' </summary>
     ''' <param name="Value"></param>
     ''' <returns></returns>
@@ -101,12 +81,42 @@
         End If
     End Function
 
+#End Region
+
+#Region "Event-Handlers"
+
+    ''' <summary>
+    ''' Change which book's data is focused on in the application controls
+    ''' </summary>
+    ''' <param name="sender"></param>
+    ''' <param name="e"></param>
+    Private Sub DataGridView1_Select(sender As Object, e As EventArgs) Handles DataGridView1.SelectionChanged
+
+        Dim book = GetSelectedBook()
+
+        'Only change the fields contents when a book is available to select
+        If book IsNot Nothing Then
+
+            BookIDTextBox.Text = book.BookID
+            NameTextBox.Text = If(book.Name, "")
+            AuthorTextBox.Text = If(book.Author, "")
+            PublisherTextBox.Text = If(book.Publisher, "")
+            DatePublishedDateTimePicker.Value = If(book.DatePublished, Date.Now)
+            PagesTextBox.Text = If(book.Pages, "")
+            RatingTextBox.Text = If(book.Rating, "")
+
+        End If
+
+    End Sub
+
     ''' <summary>
     ''' Add a new book
     ''' </summary>
     ''' <param name="sender"></param>
     ''' <param name="e"></param>
     Private Sub AddButton_Click(sender As Object, e As EventArgs) Handles AddButton.Click
+
+        'Create the new book from the data in the input fields
         Dim book As New Book With {
             .Name = NameTextBox.Text,
             .Author = AuthorTextBox.Text,
@@ -116,6 +126,8 @@
             .Publisher = PublisherTextBox.Text
         }
 
+        'Add the book
+
         db.Books.InsertOnSubmit(book)
 
         Try
@@ -124,6 +136,7 @@
             MessageBox.Show(ex.ToString())
         End Try
 
+        'Reload the table with the new changes
         ReloadData()
     End Sub
 
@@ -134,19 +147,14 @@
     ''' <param name="e"></param>
     Private Sub UpdateButton_Click(sender As Object, e As EventArgs) Handles UpdateButton.Click
 
-        'Get the row to update
-        'DataGridView1.
-        'Get the corrosponding database item to update
 
-        'Carry out the update
-
-        'Execute the results on the table
-
+        'Get the book to update
         Dim book = GetSelectedBook()
 
+        'Only run if book exists in table
         If book IsNot Nothing Then
 
-
+            'Update the book's data with the new versions
             book.Name = NameTextBox.Text
             book.Author = AuthorTextBox.Text
             book.Rating = SafeConvert(RatingTextBox.Text)
@@ -157,12 +165,14 @@
 
         End If
 
+        'Try to update the database 
         Try
             db.SubmitChanges()
         Catch ex As Exception
             MessageBox.Show(ex.ToString())
         End Try
 
+        ' refresh the window
         ReloadData()
     End Sub
 
@@ -174,20 +184,26 @@
     Private Sub DeleteButton_Click(sender As Object, e As EventArgs) Handles DeleteButton.Click
 
         Try
+            'Get the book to delete
             Dim book = GetSelectedBook()
 
-            db.Books.DeleteOnSubmit(book)
+            'If there is a book to delete
+            If book IsNot Nothing Then
+                'delete the book
 
-            db.SubmitChanges()
+                db.Books.DeleteOnSubmit(book)
+
+                db.SubmitChanges()
+            End If
         Catch ex As Exception
-            'handle exceptions
+            MessageBox.Show(ex.ToString())
         End Try
 
         ReloadData()
     End Sub
 
     ''' <summary>
-    ''' Clear the input fields as a starting point to create a new empty book
+    ''' Reset the data input fields, so that the user can input a new book's data 
     ''' </summary>
     ''' <param name="sender"></param>
     ''' <param name="e"></param>
@@ -201,5 +217,6 @@
         RatingTextBox.Text = ""
     End Sub
 
+#End Region
 
 End Class
